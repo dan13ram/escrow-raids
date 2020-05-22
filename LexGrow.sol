@@ -1,6 +1,17 @@
 /*
-|| <$> LexGrow (LXG) <$> || version 2
-
+██╗     ███████╗██╗  ██╗            
+██║     ██╔════╝╚██╗██╔╝            
+██║     █████╗   ╚███╔╝             
+██║     ██╔══╝   ██╔██╗             
+███████╗███████╗██╔╝ ██╗            
+╚══════╝╚══════╝╚═╝  ╚═╝            
+                                    
+ ██████╗ ██████╗  ██████╗ ██╗    ██╗
+██╔════╝ ██╔══██╗██╔═══██╗██║    ██║
+██║  ███╗██████╔╝██║   ██║██║ █╗ ██║
+██║   ██║██╔══██╗██║   ██║██║███╗██║
+╚██████╔╝██║  ██║╚██████╔╝╚███╔███╔╝
+ ╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚══╝╚══╝ 
 DEAR MSG.SENDER(S):
 
 / LXG is a project in beta.
@@ -9,14 +20,14 @@ DEAR MSG.SENDER(S):
 //// Likewise, LXG should not be construed as legal advice or replacement for professional counsel.
 ///// STEAL THIS C0D3SL4W 
 
-~presented by Open, ESQ || lexDAO LLC
+~presented by Open, ESQ || LexDAO LLC
 */
 
-pragma solidity 0.5.14;
+pragma solidity 0.5.17;
 
-/***************
-OPENZEPPELIN BASE CONTRACTS - Context, Role, SafeMath, IERC20 
-***************/
+/**************************
+OPENZEPPELIN BASE CONTRACTS  
+**************************/
 /*
  * @dev Provides information about the current execution context, including the
  * sender of the transaction and its data. While these are generally available
@@ -28,10 +39,6 @@ OPENZEPPELIN BASE CONTRACTS - Context, Role, SafeMath, IERC20
  * This contract is only required for intermediate, library-like contracts.
  */
 contract Context {
-    // Empty internal constructor, to prevent people from mistakenly deploying
-    // an instance of this contract, which should be used via inheritance.
-    constructor () internal { }
-
     function _msgSender() internal view returns (address payable) {
         return msg.sender;
     }
@@ -39,81 +46,6 @@ contract Context {
     function _msgData() internal view returns (bytes memory) {
         this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
         return msg.data;
-    }
-}
-
-/**
- * @title Roles
- * @dev Library for managing addresses assigned to a Role.
- */
-library Roles {
-    struct Role {
-        mapping (address => bool) bearer;
-    }
-
-    /**
-     * @dev Give an account access to this role.
-     */
-    function add(Role storage role, address account) internal {
-        require(!has(role, account), "Roles: account already has role");
-        role.bearer[account] = true;
-    }
-
-    /**
-     * @dev Remove an account's access to this role.
-     */
-    function remove(Role storage role, address account) internal {
-        require(has(role, account), "Roles: account does not have role");
-        role.bearer[account] = false;
-    }
-
-    /**
-     * @dev Check if an account has this role.
-     * @return bool
-     */
-    function has(Role storage role, address account) internal view returns (bool) {
-        require(account != address(0), "Roles: account is the zero address");
-        return role.bearer[account];
-    }
-}
-
-contract LexDAORole is Context {
-    using Roles for Roles.Role;
-
-    event LexDAOAdded(address indexed account);
-    event LexDAORemoved(address indexed account);
-
-    Roles.Role private _lexDAOs;
-    
-    constructor () internal {
-        _addLexDAO(_msgSender());
-    }
-
-    modifier onlyLexDAO() {
-        require(isLexDAO(_msgSender()), "LexDAORole: caller does not have the LexDAO role");
-        _;
-    }
-    
-    function isLexDAO(address account) public view returns (bool) {
-        return _lexDAOs.has(account);
-    }
-
-    function addLexDAO(address account) public onlyLexDAO {
-        _addLexDAO(account);
-    }
-
-    function renounceLexDAO() public {
-        _removeLexDAO(_msgSender());
-    }
-
-    function _addLexDAO(address account) internal {
-        _lexDAOs.add(account);
-        emit LexDAOAdded(account);
-    }
-
-    function _removeLexDAO(address account) internal {
-        _lexDAOs.remove(account);
-        emit LexDAORemoved(account);
     }
 }
 
@@ -226,7 +158,6 @@ library SafeMath {
      * - The divisor cannot be zero.
      */
     function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        // Solidity only automatically asserts when dividing by 0
         require(b > 0, errorMessage);
         uint256 c = a / b;
         // assert(a == b * c + a % b); // There is no case in which this doesn't hold
@@ -341,24 +272,8 @@ interface IERC20 {
 }
 
 /***************
-EARNINGS PROTOCOL CONTRACTS - Dai Savings Rate, Compound Finance
+EARNING PROTOCOL 
 ***************/
-/**
- * @title Chai.money interface
- * @dev see https://github.com/dapphub/chai
- */
-contract ICHAI {
-    function balanceOf(address usr) external returns (uint);
-    
-    function transfer(address dst, uint wad) external returns (bool);
-
-    function dai(address usr) external returns (uint wad);
-    
-    function dai(uint chai) external returns (uint wad);
-
-    function join(address dst, uint wad) external;
-}
-
 /**
  * @title Compound interface
  * @dev see https://github.com/compound-developers/compound-supply-examples
@@ -376,33 +291,39 @@ interface ICERC20 {
 }
 
 /***************
-LXG CONTRACT
+LexGrow Contract
 ***************/
-contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that earn on DSR & Compound
+contract LexGrow is Context { // deal deposits w/ embedded arbitration + defi earning
     using SafeMath for uint256;
     
-    // $DAI details:
+    /** ADR Wrapper **/
+    address private judgeToken = 0x8C32E54439C00E2B34355b8A1590046324bEaeA7;
+    IERC20 public judge = IERC20(judgeToken);
+    address private judgementToken = 0x5d9686e500D92bC22f670eA50bef585d37084504;
+    IERC20 public judgement = IERC20(judgementToken);
+
+    /** DAI + Wrappers **/
+    // $DAI:
     address private daiToken = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     IERC20 public dai = IERC20(daiToken);
+    // $cDAI:
+    address private cDAItoken = 0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643;
+    ICERC20 public cDAI = ICERC20(cDAItoken);
     
-    // $CHAI details:
-    address private chaiToken = 0x06AF07097C9Eeb7fD685c692751D5C66dB49c215;
-    ICHAI public chai = ICHAI(chaiToken);
-    
-    // $USDC details:
+    /** USDC + Wrappers **/
+    // $USDC:
     address private usdcToken = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     IERC20 public usdc = IERC20(usdcToken);
-    
-    // $cUSDC details:
+    // $cUSDC:
     address private cUSDCtoken = 0x39AA39c021dfbaE8faC545936693aC917d5E7563;
     ICERC20 public cUSDC = ICERC20(cUSDCtoken);
     
-    // <$> LXG <$> details:
+    /** <$> LXG <$> **/
+    address payable public lexDAO = 0x97103fda00a2b47EaC669568063C00e65866a633;
     address private vault = address(this);
-    address payable private lexDAO = 0x97103fda00a2b47EaC669568063C00e65866a633;
-    uint8 public version = 2;
+    uint8 public version = 1;
     uint256 public depositFee;
-    uint256 public lxg; // index for registered LexGrow
+    uint256 public lxg; // index for registered lexgrow
     string public emoji = "⚖️🌱⚔️";
     mapping (uint256 => Deposit) public deposit; 
 
@@ -410,11 +331,11 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
         address client; 
         address provider;
         uint256 amount;
-        uint256 wrap;
-        uint256 termination;
         uint256 index;
+        uint256 termination;
+        uint256 wrap;
         string details; 
-        bool dsr;
+        bool dai;
         bool locked; 
         bool released;
     }
@@ -427,45 +348,56 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
     event Resolved(address indexed resolver, uint256 indexed index, string indexed details); 
     
     constructor () public {
-        dai.approve(chaiToken, uint(-1));
+        dai.approve(cDAItoken, uint(-1));
         usdc.approve(cUSDCtoken, uint(-1));
-        depositFee = 1000000000000000;
+        depositFee = 0.001 ether;
     } 
     
-    /***************
+    /****************
     DEPOSIT FUNCTIONS
-    ***************/
-    function registerDAI( // register $DAI locker with DSR via $CHAI; arbitration via lexDAO
+    ****************/
+    function depositDAI( // register $DAI locker w/ interest via $cDAI; arbitration via lexDAO
         address provider,
         uint256 amount, 
         uint256 termination,
-        string memory details) public payable {
+        string memory details) public payable returns (uint) {
         require(msg.value == depositFee);
-	uint256 index = lxg.add(1); 
-	lxg = lxg.add(1);
 	    
-	dai.transferFrom(msg.sender, vault, amount); // deposit $DAI
-        uint256 balance = chai.balanceOf(vault);
-        chai.join(vault, amount); // wrap into $CHAI and store in vault
+	// Amount of current exchange rate from $cDAI to underlying
+        uint256 exchangeRateMantissa = cDAI.exchangeRateCurrent();
+        emit Log("Exchange Rate: (scaled up by 1e18)", exchangeRateMantissa);
+        
+        // Amount added to supply balance this block
+        uint256 supplyRateMantissa = cDAI.supplyRatePerBlock();
+        emit Log("Supply Rate: (scaled up by 1e18)", supplyRateMantissa);
+	    
+	dai.transferFrom(_msgSender(), vault, amount); // deposit $DAI
+	uint256 balance = cDAI.balanceOf(vault);
+        uint mintResult = cDAI.mint(amount); // wrap into $cDAI and store in vault
+        
+        uint256 index = lxg.add(1); 
+	lxg = lxg.add(1);
                 
             deposit[index] = Deposit( 
-                msg.sender, 
+                _msgSender(), 
                 provider,
-                amount, 
-                chai.balanceOf(vault).sub(balance),
-                termination,
+                amount,
                 index,
-                details,
+                termination,
+                cDAI.balanceOf(vault).sub(balance),
+                details, 
                 true,
                 false, 
                 false);
         
         address(lexDAO).transfer(msg.value);
         
-        emit Registered(msg.sender, provider, index); 
+        emit Registered(_msgSender(), provider, index); 
+        
+        return mintResult;
     }
     
-    function registerUSDC( // register $USDC locker with interest via $cUSDC; arbitration via lexDAO
+    function depositUSDC( // register $USDC locker w/ interest via $cUSDC; arbitration via lexDAO
         address provider,
         uint256 amount, 
         uint256 termination,
@@ -480,7 +412,7 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
         uint256 supplyRateMantissa = cUSDC.supplyRatePerBlock();
         emit Log("Supply Rate: (scaled up by 1e18)", supplyRateMantissa);
 	    
-	usdc.transferFrom(msg.sender, vault, amount); // deposit $USDC
+	usdc.transferFrom(_msgSender(), vault, amount); // deposit $USDC
 	uint256 balance = cUSDC.balanceOf(vault);
         uint mintResult = cUSDC.mint(amount); // wrap into $cUSDC and store in vault
         
@@ -488,12 +420,12 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
 	lxg = lxg.add(1);
                 
             deposit[index] = Deposit( 
-                msg.sender, 
+                _msgSender(), 
                 provider,
-                amount, 
-                cUSDC.balanceOf(vault).sub(balance),
-                termination,
+                amount,
                 index,
+                termination,
+                cUSDC.balanceOf(vault).sub(balance),
                 details, 
                 false,
                 false, 
@@ -501,20 +433,20 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
         
         address(lexDAO).transfer(msg.value);
         
-        emit Registered(msg.sender, provider, index);
+        emit Registered(_msgSender(), provider, index);
         
         return mintResult; 
     }
     
-    function release(uint256 index) public { 
+    function release(uint256 index) public { // transfer wrapped deposit to provider
     	Deposit storage depos = deposit[index];
-	require(depos.locked == false); // program safety check / status
-	require(depos.released == false); // program safety check / status
-    	require(now <= depos.termination); // program safety check / time
-    	require(msg.sender == depos.client); // program safety check / authorization
+	require(depos.locked == false); 
+	require(depos.released == false); 
+    	require(now <= depos.termination); 
+    	require(_msgSender() == depos.client); 
 
-        if (depos.dsr == true) {
-            chai.transfer(depos.provider, depos.wrap);
+        if (depos.dai == true) {
+            cDAI.transfer(depos.provider, depos.wrap);
         } else {
             cUSDC.transfer(depos.provider, depos.wrap);
         }
@@ -524,14 +456,14 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
 	emit Released(index); 
     }
     
-    function withdraw(uint256 index) public { // withdraws wrapped deposit if termination time passes
+    function withdraw(uint256 index) public { // withdraw wrapped deposit if termination time passes
     	Deposit storage depos = deposit[index];
-        require(depos.locked == false); // program safety check / status
-        require(depos.released == false); // program safety check / status
-    	require(now >= depos.termination); // program safety check / time
+        require(depos.locked == false); 
+        require(depos.released == false); 
+    	require(now >= depos.termination);
         
-        if (depos.dsr == true) {
-            chai.transfer(depos.client, depos.wrap);
+        if (depos.dai == true) {
+            cDAI.transfer(depos.client, depos.wrap);
         } else {
             cUSDC.transfer(depos.client, depos.wrap);
         }
@@ -541,46 +473,60 @@ contract LexGrow is LexDAORole { // Deal depositing for Digital Dollars that ear
 	emit Released(index); 
     }
     
-    /***************
-    ARBITRATION FUNCTIONS
-    ***************/
+    /************
+    ADR FUNCTIONS
+    ************/
     function lock(uint256 index, string memory details) public {
         Deposit storage depos = deposit[index]; 
-        require(depos.released == false); // program safety check / status
-        require(now <= depos.termination); // program safety check / time
-        require(msg.sender == depos.client || msg.sender == depos.provider); // program safety check / authorization
+        require(depos.released == false); 
+        require(now <= depos.termination); 
+        require(_msgSender() == depos.client || _msgSender() == depos.provider); 
 
 	depos.locked = true; 
 	    
 	emit Locked(index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, string memory details) public onlyLexDAO {
+    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, string memory details) public {
         Deposit storage depos = deposit[index];
-	require(depos.locked == true); // program safety check / status
-	require(depos.released == false); // program safety check / status
-	require(clientAward.add(providerAward) == depos.wrap); // program safety check / economics
-        require(msg.sender != depos.client); // program safety check / authorization  
-        require(msg.sender != depos.provider); // program safety check / authorization 
+	require(depos.locked == true); 
+	require(depos.released == false);
+	require(clientAward.add(providerAward) == depos.wrap); 
+	require(judge.balanceOf(_msgSender()) >= 1, "judgeToken balance insufficient");
+	require(_msgSender() != depos.client);
+	require(_msgSender() != depos.provider);
         
-        if (depos.dsr == true) {
-            chai.transfer(depos.client, clientAward); 
-            chai.transfer(depos.provider, providerAward);
+        if (depos.dai == true) {
+            cDAI.transfer(depos.client, clientAward); 
+            cDAI.transfer(depos.provider, providerAward);
         } else {
             cUSDC.transfer(depos.client, clientAward); 
             cUSDC.transfer(depos.provider, providerAward);
         }
     	
 	depos.released = true; 
+	judgement.transfer(_msgSender(), 1000000000000000000);
 	    
-	emit Resolved(msg.sender, index, details);
+	emit Resolved(_msgSender(), index, details);
     }
     
-    /***************
+    /*************
     MGMT FUNCTIONS
-    ***************/
-    function newDepositFee(uint256 weiAmount) public {
-        require(msg.sender == lexDAO);
-        depositFee = weiAmount;
+    *************/
+    modifier onlyLexDAO () {
+        require(_msgSender() == lexDAO);
+        _;
+    }
+    
+    function newDepositFee(uint256 _depositFee) public onlyLexDAO {
+        depositFee = _depositFee;
+    }
+    
+    function newJudgeToken(address _judgeToken) public onlyLexDAO {
+        judgeToken = _judgeToken;
+    }
+    
+    function newLexDAO(address payable _lexDAO) public onlyLexDAO {
+        lexDAO = _lexDAO;
     }
 }
