@@ -10,6 +10,7 @@ The wrapper amount of deposit is paid out.  Future implementations will likely o
 Ethereum mainnet deployment: [0x609fee2c94076d2b44f0b1bdb9ebb33877355c5d](https://etherscan.io/address/0x609fee2c94076d2b44f0b1bdb9ebb33877355c5d#code)
 
 LexDAO Arbitration: [0x97103fda00a2b47EaC669568063C00e65866a633](https://mainnet.aragon.org/#/lexdao)
+> LexDAO Members (LDM) can each vote to resolve a locked LexGrow.
 
 OpenLaw forms that integrate LXG: 
 
