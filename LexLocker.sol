@@ -460,7 +460,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         require(msg.value == depositFee);
 
         uint256 index = lxl.add(1); // add to registered index
-	      lxl = lxl.add(1);
+	lxl = lxl.add(1);
                 
             deposit[index] = Deposit( 
                 _msgSender(), 
@@ -480,31 +480,31 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
     }
 
    function release(uint256 index) public { // client can transfer deposit to provider
-    	  Deposit storage depos = deposit[index];
+    	Deposit storage depos = deposit[index];
 	    
-	      require(depos.locked == false); 
-	      require(depos.released == false); 
-    	  require(_msgSender() == depos.client); 
+	require(depos.locked == false); 
+	require(depos.released == false); 
+    	require(_msgSender() == depos.client); 
 
         IERC20(depos.token).safeTransfer(depos.provider, depos.amount);
         
         depos.released = true; 
         
-	      emit Released(index); 
+	emit Released(index); 
     }
     
    function withdraw(uint256 index) public { // withdraw deposit to client if termination time passes
-    	  Deposit storage depos = deposit[index];
+    	Deposit storage depos = deposit[index];
         
         require(depos.locked == false); 
         require(depos.released == false); 
-    	  require(now >= depos.termination);
+    	require(now >= depos.termination);
         
         IERC20(depos.token).safeTransfer(depos.client, depos.amount);
         
         depos.released = true; 
         
-	      emit Released(index); 
+	emit Released(index); 
     }
     
     /************
@@ -517,29 +517,29 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         require(now <= depos.termination); 
         require(_msgSender() == depos.client || _msgSender() == depos.provider); 
 
-	      depos.locked = true; 
+	depos.locked = true; 
 	    
-	      emit Locked(_msgSender(), index, details);
+	emit Locked(_msgSender(), index, details);
     }
     
     function resolve(uint256 index, uint256 clientAward, uint256 providerAward, string memory details) public { // judge resolves locked deposit for judgment reward 
         Deposit storage depos = deposit[index];
 	    
-	      require(depos.locked == true); 
-	      require(depos.released == false);
-	      require(_msgSender() != depos.client);
-	      require(_msgSender() != depos.provider);
-	      require(clientAward.add(providerAward) == depos.amount);
-	      require(IERC20(judge).balanceOf(_msgSender()) >= judgeBalance, "judge token balance insufficient");
+	require(depos.locked == true); 
+	require(depos.released == false);
+	require(_msgSender() != depos.client);
+	require(_msgSender() != depos.provider);
+	require(clientAward.add(providerAward) == depos.amount);
+	require(IERC20(judge).balanceOf(_msgSender()) >= judgeBalance, "judge token balance insufficient");
         
         IERC20(depos.token).safeTransfer(depos.client, clientAward);
         IERC20(depos.token).safeTransfer(depos.provider, providerAward);
 
-	      depos.released = true; 
+	depos.released = true; 
 	    
-	      IERC20(judgment).safeTransfer(_msgSender(), judgmentReward);
+	IERC20(judgment).safeTransfer(_msgSender(), judgmentReward);
 	    
-	      emit Resolved(_msgSender(), index, details);
+	emit Resolved(_msgSender(), index, details);
     }
     
     /*************
