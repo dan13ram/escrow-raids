@@ -456,8 +456,8 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         uint256 amount, 
         uint256 termination,
         string memory details) payable public {
-        require(termination >= now);
-        require(msg.value == depositFee);
+        require(termination >= now, "termination set before deploy");
+        require(msg.value == depositFee, "deposit fee not attached");
 
         uint256 index = lxl.add(1); // add to registered index
 	lxl = lxl.add(1);
@@ -479,12 +479,12 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         emit Registered(_msgSender(), provider, index); 
     }
 
-   function release(uint256 index) public { // client can transfer deposit to provider
+    function release(uint256 index) public { // client can transfer deposit to provider
     	Deposit storage depos = deposit[index];
 	    
-	require(depos.locked == false); 
-	require(depos.released == false); 
-    	require(_msgSender() == depos.client); 
+	require(depos.locked == false, "deposit already locked"); 
+	require(depos.released == false, "deposit already released"); 
+    	require(_msgSender() == depos.client, "caller not deposit client"); 
 
         IERC20(depos.token).safeTransfer(depos.provider, depos.amount);
         
@@ -493,12 +493,12 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
 	emit Released(index); 
     }
     
-   function withdraw(uint256 index) public { // withdraw deposit to client if termination time passes
+    function withdraw(uint256 index) public { // withdraw deposit to client if termination time passes
     	Deposit storage depos = deposit[index];
         
-        require(depos.locked == false); 
-        require(depos.released == false); 
-    	require(now >= depos.termination);
+        require(depos.locked == false, "deposit already locked"); 
+        require(depos.released == false, "deposit already released"); 
+    	require(now >= depos.termination, "deposit time not terminated");
         
         IERC20(depos.token).safeTransfer(depos.client, depos.amount);
         
@@ -513,9 +513,9 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
     function lock(uint256 index, string memory details) public { // index client or provider can lock deposit for resolution during locker period
         Deposit storage depos = deposit[index]; 
         
-        require(depos.released == false); 
-        require(now <= depos.termination); 
-        require(_msgSender() == depos.client || _msgSender() == depos.provider); 
+        require(depos.released == false, "deposit already released"); 
+        require(now <= depos.termination, "deposit time already terminated"); 
+        require(_msgSender() == depos.client || _msgSender() == depos.provider, "caller not deposit party"); 
 
 	depos.locked = true; 
 	    
@@ -525,12 +525,12 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
     function resolve(uint256 index, uint256 clientAward, uint256 providerAward, string memory details) public { // judge resolves locked deposit for judgment reward 
         Deposit storage depos = deposit[index];
 	    
-	require(depos.locked == true); 
-	require(depos.released == false);
-	require(_msgSender() != depos.client);
-	require(_msgSender() != depos.provider);
-	require(clientAward.add(providerAward) == depos.amount);
-	require(IERC20(judge).balanceOf(_msgSender()) >= judgeBalance, "judge token balance insufficient");
+	require(depos.locked == true, "deposit not locked"); 
+	require(depos.released == false, "deposit already released");
+	require(_msgSender() != depos.client, "resolver cannot be deposit party");
+	require(_msgSender() != depos.provider, "resolver cannot be deposit party");
+	require(clientAward.add(providerAward) == depos.amount, "resolution awards must equal deposit amount");
+	require(IERC20(judge).balanceOf(_msgSender()) >= judgeBalance, "judge token balance insufficient to resolve");
         
         IERC20(depos.token).safeTransfer(depos.client, clientAward);
         IERC20(depos.token).safeTransfer(depos.provider, providerAward);
@@ -546,7 +546,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
     MGMT FUNCTIONS
     *************/
     modifier onlyLexDAO () {
-        require(_msgSender() == lexDAO);
+        require(_msgSender() == lexDAO, "caller not lexDAO");
         _;
     }
     
