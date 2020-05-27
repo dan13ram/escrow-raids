@@ -10,7 +10,7 @@ Ethereum mainnet deployment: [0x2CAF5A42EC2D6747eC696714BF913b174d94FDF0](https:
 LexDAO Arbitration: [0xB4659D8907cdD36E36D0037F62Ef8Be696e4CE16](https://mainnet.aragon.org/#/lexdaojudge)
 > LexDAO Judges (LJ) can each vote to resolve a locked LexLocker.
 
-OpenLaw forms that integrate LXG: 
+OpenLaw forms that integrate LXL: 
 
 - [DEAL LOCKER](https://lib.openlaw.io/web/default/template/Deal%20Locker) 🔐
 
