@@ -1,7 +1,7 @@
 # LexDAO Escrow
 Digital and legal programming for escrows.
 
-## v1 - LexLocker (LXK) ⚖️🔐⚔️ 
+## v1 - LexLocker (LXL) ⚖️🔐⚔️ 
 
 LXL stores deal details, permissions, and escrows any ERC-20 token that can be further resolved through lexDAO arbitration for Party B deliverables.
 
