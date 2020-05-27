@@ -1,5 +1,7 @@
-# LexDAO Escrow
-Digital and legal programming for escrows.
+# LexDAO Escrow 
+> Digital and legal programming for escrows.
+
+[![built-with openzeppelin](https://img.shields.io/badge/built%20with-OpenZeppelin-3677FF)](https://docs.openzeppelin.com/)
 
 ## v1 - LexLocker (LXL) ⚖️🔐⚔️ 
 
