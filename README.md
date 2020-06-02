@@ -1,5 +1,5 @@
 # LexDAO Escrow 
-> Digital and legal programming for escrows.
+> legal programming to lock in deals with erc-20 tokens.
 
 [![built-with openzeppelin](https://img.shields.io/badge/built%20with-OpenZeppelin-3677FF)](https://docs.openzeppelin.com/)
 
