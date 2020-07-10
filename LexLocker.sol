@@ -35,11 +35,11 @@ pragma solidity 0.5.17;
  * This contract is only required for intermediate, library-like contracts.
  */
 contract Context {
-    function _msgSender() internal view returns (address payable) {
+    function _msgSender() internal view virtual returns (address payable) {
         return msg.sender;
     }
 
-    function _msgData() internal view returns (bytes memory) {
+    function _msgData() internal view virtual returns (bytes memory) {
         this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
         return msg.data;
     }
@@ -66,6 +66,7 @@ library SafeMath {
      * Counterpart to Solidity's `+` operator.
      *
      * Requirements:
+     *
      * - Addition cannot overflow.
      */
     function add(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -82,6 +83,7 @@ library SafeMath {
      * Counterpart to Solidity's `-` operator.
      *
      * Requirements:
+     *
      * - Subtraction cannot overflow.
      */
     function sub(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -95,6 +97,7 @@ library SafeMath {
      * Counterpart to Solidity's `-` operator.
      *
      * Requirements:
+     *
      * - Subtraction cannot overflow.
      */
     function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
@@ -111,6 +114,7 @@ library SafeMath {
      * Counterpart to Solidity's `*` operator.
      *
      * Requirements:
+     *
      * - Multiplication cannot overflow.
      */
     function mul(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -136,6 +140,7 @@ library SafeMath {
      * uses an invalid opcode to revert (consuming all remaining gas).
      *
      * Requirements:
+     *
      * - The divisor cannot be zero.
      */
     function div(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -151,6 +156,7 @@ library SafeMath {
      * uses an invalid opcode to revert (consuming all remaining gas).
      *
      * Requirements:
+     *
      * - The divisor cannot be zero.
      */
     function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
@@ -170,6 +176,7 @@ library SafeMath {
      * invalid opcode to revert (consuming all remaining gas).
      *
      * Requirements:
+     *
      * - The divisor cannot be zero.
      */
     function mod(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -185,6 +192,7 @@ library SafeMath {
      * invalid opcode to revert (consuming all remaining gas).
      *
      * Requirements:
+     *
      * - The divisor cannot be zero.
      */
     function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
@@ -392,7 +400,7 @@ library SafeERC20 {
     }
 }
 
-contract LexLocker is Context { // deal deposits w/ embedded arbitration via lexDAO
+contract LexLocker is Context { // deal deposits w/ embedded arbitration via LexDAO
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     
@@ -418,19 +426,19 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         uint256 amount;
         uint256 index;
         uint256 termination;
-        string details; 
+        bytes32 details; 
         bool locked; 
         bool released;
     }
     	
     // LXL Deposit Events:
-    event LexDAOpaid(address indexed sender, uint256 indexed payment, string indexed details);
-    event Locked(address indexed sender, uint256 indexed index, string indexed details);
+    event LexDAOpaid(address indexed sender, uint256 indexed payment, bytes32 indexed details);
+    event Locked(address indexed sender, uint256 indexed index, bytes32 indexed details);
     event Registered(address indexed client, address indexed provider, uint256 indexed index);  
     event Released(uint256 indexed index); 
-    event Resolved(address indexed resolver, uint256 indexed index, string indexed details); 
+    event Resolved(address indexed resolver, uint256 indexed index, bytes32 indexed details); 
     
-    constructor (
+    constructor(
         address _judge, 
         address _judgment, 
         address payable _lexDAO, 
@@ -453,7 +461,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         address token,
         uint256 amount, 
         uint256 termination,
-        string memory details) payable public {
+        bytes32 details) payable external {
         require(termination >= now, "termination set before deploy");
         require(msg.value == depositFee, "deposit fee not attached");
 
@@ -471,13 +479,13 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
                 false, 
                 false);
         
-        lexDAO.transfer(msg.value); // transfer lexlocker ether (Ξ) fee to lexDAO
+        sendValue(lexDAO, msg.value); // transfer lexlocker ether (Ξ) fee to lexDAO
         IERC20(token).safeTransferFrom(_msgSender(), locker, amount); // deposit token
         
         emit Registered(_msgSender(), provider, index); 
     }
 
-    function release(uint256 index) public { // client can transfer deposit to provider
+    function release(uint256 index) external { // client can transfer deposit to provider
     	Deposit storage depos = deposit[index];
 	    
 	require(depos.locked == false, "deposit already locked"); 
@@ -491,7 +499,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
 	emit Released(index); 
     }
     
-    function withdraw(uint256 index) public { // withdraw deposit to client if termination time passes
+    function withdraw(uint256 index) external { // withdraw deposit to client if termination time passes
     	Deposit storage depos = deposit[index];
         
         require(depos.locked == false, "deposit already locked"); 
@@ -508,7 +516,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
     /************
     ADR FUNCTIONS
     ************/
-    function lock(uint256 index, string memory details) public { // index client or provider can lock deposit for resolution during locker period
+    function lock(uint256 index, bytes32 details) external { // index client or provider can lock deposit for resolution during locker period
         Deposit storage depos = deposit[index]; 
         
         require(depos.released == false, "deposit already released"); 
@@ -520,7 +528,7 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
 	emit Locked(_msgSender(), index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, string memory details) public { // judge resolves locked deposit for judgment reward 
+    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // judge resolves locked deposit for judgment reward 
         Deposit storage depos = deposit[index];
 	    
 	require(depos.locked == true, "deposit not locked"); 
@@ -548,32 +556,32 @@ contract LexLocker is Context { // deal deposits w/ embedded arbitration via lex
         _;
     }
     
-    function payLexDAO(string memory details) payable public { // public attaches ether (Ξ) with details to lexDAO
+    function payLexDAO(bytes32 details) payable external { // public attaches ether (Ξ) with details to lexDAO
         lexDAO.transfer(msg.value);
         emit LexDAOpaid(_msgSender(), msg.value, details);
     }
     
-    function updateDepositFee(uint256 _depositFee) public onlyLexDAO {
+    function updateDepositFee(uint256 _depositFee) external onlyLexDAO {
         depositFee = _depositFee;
     }
     
-    function updateJudge(address _judge) public onlyLexDAO { // token address
+    function updateJudge(address _judge) external onlyLexDAO { // token address
         judge = _judge;
     }
     
-    function updateJudgeBalance(uint256 _judgeBalance) public onlyLexDAO {
+    function updateJudgeBalance(uint256 _judgeBalance) external onlyLexDAO {
         judgeBalance = _judgeBalance;
     }
     
-    function updateJudgment(address _judgment) public onlyLexDAO { // token address
+    function updateJudgment(address _judgment) external onlyLexDAO { // token address
         judgment = _judgment;
     }
     
-    function updateJudgmentReward(uint256 _judgmentReward) public onlyLexDAO {
+    function updateJudgmentReward(uint256 _judgmentReward) external onlyLexDAO {
         judgmentReward = _judgmentReward;
     }
 
-    function updateLexDAO(address payable _lexDAO) public onlyLexDAO {
+    function updateLexDAO(address payable _lexDAO) external onlyLexDAO {
         lexDAO = _lexDAO;
     }
 }
