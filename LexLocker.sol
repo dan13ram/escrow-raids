@@ -202,15 +202,15 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
     function release(uint256 index) external { // client transfers deposit amount to provider
     	Deposit storage depos = deposit[index];
 	    
-	require(depos.locked == 0, "deposit locked"); 
-    	require(_msgSender() == depos.client, "not client"); 
+	require(depos.locked == 0, "deposit locked");
+	require(depos.cap > depos.released, "deposit released");
+    	require(_msgSender() == depos.client, "not deposit client"); 
         
         uint256 milestone = depos.amount;  
         
         IERC20(depos.token).safeTransfer(depos.provider, milestone);
         
         depos.released = depos.released.add(milestone);
-        require(depos.cap > depos.released, "cap released");
         
 	emit Release(index, milestone); 
     }
@@ -218,7 +218,8 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
     function withdraw(uint256 index) external { // withdraw deposit remainder to client if termination time passes and no lock
     	Deposit storage depos = deposit[index];
         
-        require(depos.locked == 0, "deposit locked"); 
+        require(depos.locked == 0, "deposit locked");
+        require(depos.cap > depos.released, "deposit released");
         require(now >= depos.termination, "termination time pending");
         
         uint256 remainder = depos.cap.sub(depos.released); 
@@ -226,7 +227,6 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         IERC20(depos.token).safeTransfer(depos.client, remainder);
         
         depos.released = depos.released.add(remainder); 
-        require(depos.cap > depos.released, "cap released");
         
 	emit Withdraw(index, remainder); 
     }
@@ -237,8 +237,8 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
     function lock(uint256 index, bytes32 details) external { // client or provider can lock deposit for lexDAO resolution during locker period
         Deposit storage depos = deposit[index]; 
         
-        require(depos.cap > depos.released, "cap released");
-        require(now <= depos.termination, "deposit terminated"); 
+        require(depos.cap > depos.released, "deposit released");
+        require(now <= depos.termination, "termination time passed"); 
         require(_msgSender() == depos.client || _msgSender() == depos.provider, "not deposit party"); 
         
 	depos.locked = 1; 
