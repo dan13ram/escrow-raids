@@ -26,7 +26,7 @@ DEAR MSG.SENDER(S):
 
 pragma solidity 0.5.17;
 
-contract Context { // describes current execution context / openzeppelin-contracts/blob/master/contracts/GSN/Context.sol
+contract Context { // describes current contract execution context / openzeppelin-contracts/blob/master/contracts/GSN/Context.sol
     function _msgSender() internal view returns (address payable) {
         return msg.sender;
     }
@@ -48,17 +48,6 @@ library SafeMath { // wrappers over solidity arithmetic operations with added ov
     function sub(uint256 a, uint256 b) internal pure returns (uint256) {
         require(b <= a);
         uint256 c = a - b;
-
-        return c;
-    }
-    
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        if (a == 0) {
-            return 0;
-        }
-
-        uint256 c = a * b;
-        require(c / a == b);
 
         return c;
     }
@@ -92,7 +81,7 @@ interface IERC20 { // brief interface for erc20 token txs
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
-library SafeERC20 { // wrappers around erc20 operations that throw on failure (when the token contract returns false) / openzeppelin-contracts/blob/master/contracts/token/ERC20/SafeERC20.sol
+library SafeERC20 { // wrappers around erc20 token txs that throw on failure (when the token contract returns false) / openzeppelin-contracts/blob/master/contracts/token/ERC20/SafeERC20.sol
     using Address for address;
 
     function safeTransfer(IERC20 token, address to, uint256 value) internal {
@@ -120,7 +109,7 @@ interface IWETH { // brief interface for ether wrapping contract
     function transfer(address dst, uint wad) external returns (bool);
 }
 
-contract LexLocker is Context { // digital deal deposits w/ embedded arbitration via LexDAO (lexdao.org)
+contract LexLocker is Context { // digital deal deposits w/ embedded arbitration via lexDAO (lexdao.org)
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     
@@ -151,10 +140,11 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
     }
     	
     event DepositToken(address indexed client, address indexed provider, uint256 indexed index);  
-    event Release(uint256 indexed index); 
+    event Release(uint256 indexed index, uint256 indexed milestone); 
+    event Withdraw(uint256 indexed index, uint256 indexed remainder);
     event Lock(address indexed sender, uint256 indexed index, bytes32 indexed details);
+    event Resolve(address indexed resolver, uint256 indexed clientAward, uint256 indexed providerAward, uint256 index, bytes32 details); 
     event PayLexDAO(address indexed sender, uint256 indexed payment, bytes32 indexed details);
-    event Resolve(address indexed resolver, uint256 indexed index, bytes32 indexed details); 
     
     constructor(
         address _judgeAccessToken, 
@@ -179,20 +169,20 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         uint256 cap,
         uint256 termination,
         bytes32 details) payable external {
-        require(termination >= now, "termination passed");
+        require(amount <= cap, "amount exeeds cap"); 
         
         if (token == wETH && msg.value > 0) {
-            require(msg.value == amount, "insufficient ETH");
+            require(msg.value == cap, "insufficient ETH");
             IWETH(wETH).deposit();
             (bool success, ) = wETH.call.value(msg.value)("");
             require(success, "transfer failed");
             IWETH(wETH).transfer(address(this), msg.value);
         } else {
-            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+            IERC20(token).safeTransferFrom(msg.sender, address(this), cap);
         }
 
         uint256 index = lxl+1; // add to registered index
-	    lxl += lxl;
+	lxl += lxl;
                 
             deposit[index] = Deposit( 
                 _msgSender(), 
@@ -209,69 +199,74 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         emit DepositToken(_msgSender(), provider, index); 
     }
 
-    function release(uint256 index) external { // client can transfer deposit to provider
+    function release(uint256 index) external { // client transfers deposit amount to provider
     	Deposit storage depos = deposit[index];
 	    
-	    require(depos.locked == 0, "deposit locked"); 
+	require(depos.locked == 0, "deposit locked"); 
     	require(_msgSender() == depos.client, "not client"); 
-    	require(depos.cap >= depos.amount+depos.released, "cap exceeded");
-
-        IERC20(depos.token).safeTransfer(depos.provider, depos.amount);
+    	require(depos.cap >= depos.amount.add(depos.released), "cap exceeded");
         
-        depos.released = depos.released+depos.amount;
+        uint256 milestone = depos.amount;  
         
-	    emit Release(index); 
+        IERC20(depos.token).safeTransfer(depos.provider, milestone);
+        
+        depos.released = depos.released.add(milestone);
+        
+	emit Release(index, milestone); 
     }
     
-    function withdraw(uint256 index) external { // withdraw deposit to client if termination time passes
+    function withdraw(uint256 index) external { // withdraw deposit remainder to client if termination time passes
     	Deposit storage depos = deposit[index];
         
         require(depos.locked == 0, "deposit locked"); 
         require(depos.cap > depos.released, "deposit released");
         require(now >= depos.termination, "termination time pending");
         
-        IERC20(depos.token).safeTransfer(depos.client, depos.amount);
+        uint256 remainder = depos.cap.sub(depos.released); 
         
-        depos.released = 1; 
+        IERC20(depos.token).safeTransfer(depos.client, remainder);
         
-	    emit Release(index); 
+        depos.released = depos.released.add(remainder); 
+        
+	emit Withdraw(index, remainder); 
     }
     
     /************
     ADR FUNCTIONS
     ************/
-    function lock(uint256 index, bytes32 details) external { // index client or provider can lock deposit for resolution during locker period
+    function lock(uint256 index, bytes32 details) external { // client or provider can lock deposit for lexDAO resolution during locker period
         Deposit storage depos = deposit[index]; 
         
         require(depos.cap > depos.released, "deposit released");
         require(now <= depos.termination, "termination time passed"); 
         require(_msgSender() == depos.client || _msgSender() == depos.provider, "not deposit party"); 
         
-	    depos.locked = 1; 
+	depos.locked = 1; 
 	    
-	    emit Lock(_msgSender(), index, details);
+	emit Lock(_msgSender(), index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // judge resolves locked deposit for judgment reward 
+    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // lexDAO judge resolves locked deposit remainder
         Deposit storage depos = deposit[index];
         
-        uint256 remainder = depos.cap-depos.released; 
-	    uint256 resolutionFee = remainder.div(20); // calculates 5% lexDAO dispute resolution fee
+        uint256 remainder = depos.cap.sub(depos.released); 
+	uint256 resolutionFee = remainder.div(20); // calculates 5% lexDAO dispute resolution fee
 	    
-	    require(depos.locked == 1, "deposit not locked"); 
-	    require(depos.cap > depos.released, "deposit released");
-	    require(_msgSender() != depos.client, "cannot be deposit party");
-	    require(_msgSender() != depos.provider, "cannot be deposit party");
-	    require(clientAward+providerAward == remainder-resolutionFee, "resolution must match deposit"); 
-	    require(IERC20(judgeAccessToken).balanceOf(_msgSender()) >= judgeAccessBalance, "judgeAccessToken insufficient");
+	require(depos.locked == 1, "deposit not locked"); 
+	require(depos.cap > depos.released, "deposit released");
+	require(_msgSender() != depos.client, "cannot be deposit party");
+	require(_msgSender() != depos.provider, "cannot be deposit party");
+	require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
+	require(IERC20(judgeAccessToken).balanceOf(_msgSender()) >= judgeAccessBalance, "judgeAccessToken insufficient");
         
         IERC20(depos.token).safeTransfer(depos.client, clientAward);
         IERC20(depos.token).safeTransfer(depos.provider, providerAward);
         IERC20(depos.token).safeTransfer(lexDAO, resolutionFee);
-
-	    IERC20(judgmentRewardToken).safeTransfer(_msgSender(), judgmentReward);
+	IERC20(judgmentRewardToken).safeTransfer(_msgSender(), judgmentReward);
 	    
-	    emit Resolve(_msgSender(), index, details);
+	depos.released = depos.released.add(remainder); 
+	    
+	emit Resolve(_msgSender(), clientAward, providerAward, index, details);
     }
     
     /*************
