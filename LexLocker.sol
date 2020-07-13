@@ -199,7 +199,7 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         emit DepositToken(_msgSender(), provider, index); 
     }
 
-    function release(uint256 index) external { // client transfers deposit amount to provider
+    function release(uint256 index) external { // client transfers deposit amount (milestone) to provider
     	Deposit storage depos = deposit[index];
 	    
 	require(depos.locked == 0, "deposit locked");
@@ -220,7 +220,7 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         
         require(depos.locked == 0, "deposit locked");
         require(depos.cap > depos.released, "deposit released");
-        require(now >= depos.termination, "termination time pending");
+        require(now > depos.termination, "termination time pending");
         
         uint256 remainder = depos.cap.sub(depos.released); 
         
@@ -238,7 +238,7 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         Deposit storage depos = deposit[index]; 
         
         require(depos.cap > depos.released, "deposit released");
-        require(now <= depos.termination, "termination time passed"); 
+        require(now < depos.termination, "termination time passed"); 
         require(_msgSender() == depos.client || _msgSender() == depos.provider, "not deposit party"); 
         
 	depos.locked = 1; 
