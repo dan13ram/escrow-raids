@@ -22,8 +22,6 @@ DEAR MSG.SENDER(S):
 ~presented by Open, ESQ || LexDAO LLC
 */
 
-// SPDX-License-Identifier: MIT
-
 pragma solidity 0.5.17;
 
 contract Context { // describes current contract execution context / openzeppelin-contracts/blob/master/contracts/GSN/Context.sol
