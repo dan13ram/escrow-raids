@@ -49,6 +49,17 @@ library SafeMath { // wrappers over solidity arithmetic operations with added ov
 
         return c;
     }
+    
+    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
+        if (a == 0) {
+            return 0;
+        }
+
+        uint256 c = a * b;
+        require(c / a == b);
+
+        return c;
+    }
 
     function div(uint256 a, uint256 b) internal pure returns (uint256) {
         require(b > 0);
@@ -172,9 +183,10 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         address token,
         uint256 amount, 
         uint256 cap,
+        uint256 milestones,
         uint256 termination,
         bytes32 details) payable external {
-        require(amount <= cap, "amount exeeds cap"); 
+        require(amount.mul(milestones) == cap, "deposit milestones mismatch");
         
         if (token == wETH && msg.value > 0) {
             require(msg.value == cap, "insufficient ETH");
