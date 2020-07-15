@@ -7,9 +7,9 @@
 
 LXL stores deal details, permissions, and escrows any ERC-20 token that can be further resolved through lexDAO arbitration for Party B deliverables.
 
-Ethereum mainnet deployment: [0xd75b24b0cbb2d1c4623f3d2d87097499b49a8315](https://etherscan.io/address/0xd75b24b0cbb2d1c4623f3d2d87097499b49a8315#code)
+Ethereum mainnet deployment: [0x6d2A62442dAf0448561d130b40BaC6159264b1c0](https://etherscan.io/address/0x6d2A62442dAf0448561d130b40BaC6159264b1c0#code)
 
-LexDAO Arbitration: [0xB4659D8907cdD36E36D0037F62Ef8Be696e4CE16](https://mainnet.aragon.org/#/lexdaojudge)
+LexDAO Arbitration: [0x6d2A62442dAf0448561d130b40BaC6159264b1c0](https://mainnet.aragon.org/#/lexdaojudge)
 > LexDAO Judges (LJ) can each vote to resolve a locked LexLocker.
 
 OpenLaw forms that integrate LXL: 
