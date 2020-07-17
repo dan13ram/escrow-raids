@@ -5,6 +5,12 @@
 ██║     ██╔══╝   ██╔██╗                          
 ███████╗███████╗██╔╝ ██╗                         
 ╚══════╝╚══════╝╚═╝  ╚═╝                         
+ ██████╗ ██╗   ██╗██╗██╗     ██████╗             
+██╔════╝ ██║   ██║██║██║     ██╔══██╗            
+██║  ███╗██║   ██║██║██║     ██║  ██║            
+██║   ██║██║   ██║██║██║     ██║  ██║            
+╚██████╔╝╚██████╔╝██║███████╗██████╔╝            
+ ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝             
 ██╗      ██████╗  ██████╗██╗  ██╗███████╗██████╗ 
 ██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗
 ██║     ██║   ██║██║     █████╔╝ █████╗  ██████╔╝
@@ -13,10 +19,10 @@
 ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 DEAR MSG.SENDER(S):
 
-/ LXL is a project in beta.
+/ LXGL is a project in beta.
 // Please audit and use at your own risk.
-/// Entry into LXL shall not create an attorney/client relationship.
-//// Likewise, LXL should not be construed as legal advice or replacement for professional counsel.
+/// Entry into LXGL shall not create an attorney/client relationship.
+//// Likewise, LXGL should not be construed as legal advice or replacement for professional counsel.
 ///// STEAL THIS C0D3SL4W 
 
 ~presented by Open, ESQ || LexDAO LLC
@@ -118,68 +124,41 @@ interface IWETH { // brief interface for ether wrapping contract
     function transfer(address dst, uint wad) external returns (bool);
 }
 
-contract LexLocker is Context { // digital deal deposits w/ embedded arbitration via lexDAO (lexdao.org)
+contract LexGuildLocker is Context { // digital deal deposits w/ embedded arbitration tailored for guild raids
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    
-    /** ADR Wrapper **/
-    address public judgeAccessToken;
-    address public judgmentRewardToken;
-    address payable public lexDAO;
-    uint256 public judgeAccessBalance;
-    uint256 public judgmentRate;
-    uint256 public judgmentReward;
 
-    /** <$> LXL <$> **/
+    /** <$> LXGL <$> **/
     address private locker = address(this);
     address public wETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // wrapping contract for raw payable ether
     uint256 public lockerIndex;
-    bytes32 public lexStamp;
     mapping(uint256 => Deposit) public deposits; 
 
     struct Deposit {  
         address client; 
         address provider;
+        address resolver;
         address token;
         uint8 locked;
         uint256 amount;
         uint256 cap;
-        uint256 judgmentRate;
         uint256 released;
         uint256 termination;
         bytes32 details; 
     }
     	
-    event DepositToken(address indexed client, address indexed provider, uint256 indexed index);  
+    event DepositToken(address indexed client, address indexed provider, address indexed resolver, uint256 index);  
     event Release(uint256 indexed index, uint256 indexed milestone); 
     event Withdraw(uint256 indexed index, uint256 indexed remainder);
     event Lock(address indexed sender, uint256 indexed index, bytes32 indexed details);
     event Resolve(address indexed resolver, uint256 indexed clientAward, uint256 indexed providerAward, uint256 index, bytes32 details); 
-    event PayLexDAO(address indexed sender, uint256 indexed payment, bytes32 indexed details);
-    event UpdateGovernance(address indexed _judgeAccessToken, address indexed _judgmentRewardToken, address indexed _lexDAO, uint256 _judgeAccessBalance, uint256 _judgmentRate, uint256 _judgmentReward, bytes32 _lexStamp);
-    
-    constructor(
-        address _judgeAccessToken, 
-        address _judgmentRewardToken, 
-        address payable _lexDAO, 
-        uint256 _judgeAccessBalance, 
-        uint256 _judgmentRate,
-        uint256 _judgmentReward,
-        bytes32 _lexStamp) public { 
-        judgeAccessToken = _judgeAccessToken;
-        judgmentRewardToken = _judgmentRewardToken;
-        lexDAO = _lexDAO;
-        judgeAccessBalance = _judgeAccessBalance;
-        judgmentRate = _judgmentRate;
-        judgmentReward = _judgmentReward;
-        lexStamp = _lexStamp;
-    } 
-    
+
     /***************
     LOCKER FUNCTIONS
     ***************/
     function depositToken( // register lexlocker and deposit token 
         address provider,
+        address resolver,
         address token,
         uint256 amount, 
         uint256 cap,
@@ -204,23 +183,23 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         deposits[index] = Deposit( 
             _msgSender(), 
             provider,
+            resolver,
             token,
             0,
             amount,
             cap,
-            judgmentRate,
             0,
             termination,
             details);
         
-        emit DepositToken(_msgSender(), provider, lockerIndex); 
+        emit DepositToken(_msgSender(), provider, resolver, lockerIndex); 
     }
 
-    function release(uint256 index) external { // client transfers deposit amount (milestone) to provider
+    function release(uint256 index) external { // client transfers deposit amount (milestone) to provider 
     	Deposit storage deposit = deposits[index];
 	    
-	require(deposit.locked == 0, "deposit locked");
-	require(deposit.cap > deposit.released, "deposit released");
+	    require(deposit.locked == 0, "deposit locked");
+	    require(deposit.cap > deposit.released, "deposit released");
     	require(_msgSender() == deposit.client, "not deposit client"); 
         
         uint256 milestone = deposit.amount;  
@@ -229,7 +208,7 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         
         deposit.released = deposit.released.add(milestone);
         
-	emit Release(index, milestone); 
+	    emit Release(index, milestone); 
     }
     
     function withdraw(uint256 index) external { // withdraw deposit remainder to client if termination time passes and no lock
@@ -245,75 +224,43 @@ contract LexLocker is Context { // digital deal deposits w/ embedded arbitration
         
         deposit.released = deposit.released.add(remainder); 
         
-	emit Withdraw(index, remainder); 
+	    emit Withdraw(index, remainder); 
     }
     
     /************
     ADR FUNCTIONS
     ************/
-    function lock(uint256 index, bytes32 details) external { // client or provider can lock deposit for lexDAO resolution during locker period / update details
+    function lock(uint256 index, bytes32 details) external { // client or provider can lock deposit for resolution during locker period / update details
         Deposit storage deposit = deposits[index]; 
         
         require(deposit.cap > deposit.released, "deposit released");
         require(now < deposit.termination, "termination time passed"); 
         require(_msgSender() == deposit.client || _msgSender() == deposit.provider, "not deposit party"); 
         
-	deposit.locked = 1; 
+	    deposit.locked = 1; 
 	    
-	emit Lock(_msgSender(), index, details);
+	    emit Lock(_msgSender(), index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // lexDAO judge resolves locked deposit remainder 
+    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // selected resolver splits locked deposit remainder 
         Deposit storage deposit = deposits[index];
         
         uint256 remainder = deposit.cap.sub(deposit.released); 
-	uint256 resolutionFee = remainder.div(deposit.judgmentRate); // calculates lexDAO dispute resolution fee
+	    uint256 resolutionFee = remainder.div(20); // calculates dispute resolution fee (5% of remainder)
 	    
-	require(deposit.locked == 1, "deposit not locked"); 
-	require(deposit.cap > deposit.released, "cap released");
-	require(_msgSender() != deposit.client, "cannot be deposit party");
-	require(_msgSender() != deposit.provider, "cannot be deposit party");
-	require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
-	require(IERC20(judgeAccessToken).balanceOf(_msgSender()) >= judgeAccessBalance, "judgeAccessToken insufficient");
+	    require(deposit.locked == 1, "deposit not locked"); 
+	    require(deposit.cap > deposit.released, "cap released");
+	    require(_msgSender() == deposit.resolver, "not deposit resolver");
+	    require(_msgSender() != deposit.client, "cannot be deposit party");
+	    require(_msgSender() != deposit.provider, "cannot be deposit party");
+	    require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
         
-        IERC20(deposit.token).safeTransfer(lexDAO, resolutionFee);
         IERC20(deposit.token).safeTransfer(deposit.client, clientAward);
         IERC20(deposit.token).safeTransfer(deposit.provider, providerAward);
-	IERC20(judgmentRewardToken).safeTransfer(_msgSender(), judgmentReward);
+        IERC20(deposit.token).safeTransfer(deposit.resolver, resolutionFee);
 	    
-	deposit.released = deposit.released.add(remainder); 
+	    deposit.released = deposit.released.add(remainder); 
 	    
-	emit Resolve(_msgSender(), clientAward, providerAward, index, details);
-    }
-    
-    /***************
-    LEXDAO FUNCTIONS
-    ***************/
-    function payLexDAO(bytes32 details) payable external { // attach ether (Ξ) with details to lexDAO
-        (bool success, ) = lexDAO.call.value(msg.value)("");
-        require(success, "transfer failed");
-        
-        emit PayLexDAO(_msgSender(), msg.value, details);
-    }
-    
-    function updateGovernance(
-        address _judgeAccessToken, 
-        address _judgmentRewardToken,
-        address payable _lexDAO,
-        uint256 _judgeAccessBalance, 
-        uint256 _judgmentRate, 
-        uint256 _judgmentReward,
-        bytes32 _lexStamp) external {
-        require(_msgSender() == lexDAO, "caller not lexDAO");
-        
-        judgeAccessToken = _judgeAccessToken; 
-        judgmentRewardToken = _judgmentRewardToken;
-        lexDAO = _lexDAO;
-        judgeAccessBalance = _judgeAccessBalance; 
-        judgmentRate = _judgmentRate; 
-        judgmentReward = _judgmentReward;
-        lexStamp = _lexStamp;
-        
-        emit UpdateGovernance(_judgeAccessToken, _judgmentRewardToken, _lexDAO, _judgeAccessBalance, _judgmentRate, _judgmentReward, _lexStamp);
+	    emit Resolve(_msgSender(), clientAward, providerAward, index, details);
     }
 }
