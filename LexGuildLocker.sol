@@ -214,12 +214,12 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
     }
 
     function release(uint256 index) external { // client transfers deposit amount(s) (milestone) to provider(s) 
-    	  Deposit storage deposit = deposits[index];
+    	Deposit storage deposit = deposits[index];
 	    
-	      require(deposit.locked == 0, "deposit locked");
-	      require(deposit.confirmed == 1, "deposit unconfirmed");
-	      require(deposit.cap > deposit.released, "deposit released");
-    	  require(_msgSender() == deposit.client, "not deposit client"); 
+	require(deposit.locked == 0, "deposit locked");
+	require(deposit.confirmed == 1, "deposit unconfirmed");
+	require(deposit.cap > deposit.released, "deposit released");
+    	require(_msgSender() == deposit.client, "not deposit client"); 
         
         uint256[] memory milestone = deposit.amount;
         
@@ -228,11 +228,11 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
             deposit.released = deposit.released.add(milestone[i]);
         }
 
-	      emit Release(index, milestone); 
+	emit Release(index, milestone); 
     }
     
     function withdraw(uint256 index) external { // withdraw deposit remainder to client if termination time passes and no lock
-    	  Deposit storage deposit = deposits[index];
+    	Deposit storage deposit = deposits[index];
         
         require(deposit.locked == 0, "deposit locked");
         require(deposit.confirmed == 1, "deposit unconfirmed");
@@ -245,7 +245,7 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         
         deposit.released = deposit.released.add(remainder); 
         
-	      emit Withdraw(index, remainder); 
+	emit Withdraw(index, remainder); 
     }
     
     /************
@@ -259,30 +259,30 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         require(now < deposit.termination, "termination time passed"); 
         require(_msgSender() == deposit.client || _msgSender() == deposit.provider[0], "not deposit party"); 
 
-	      deposit.locked = 1; 
+	deposit.locked = 1; 
 	    
-	      emit Lock(_msgSender(), index, details);
+	emit Lock(_msgSender(), index, details);
     }
     
     function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // selected resolver splits locked deposit remainder 
         Deposit storage deposit = deposits[index];
         
         uint256 remainder = deposit.cap.sub(deposit.released); 
-	      uint256 resolutionFee = remainder.div(20); // calculates dispute resolution fee (5% of remainder)
+	uint256 resolutionFee = remainder.div(20); // calculates dispute resolution fee (5% of remainder)
 	    
-	      require(deposit.locked == 1, "deposit not locked"); 
-	      require(deposit.cap > deposit.released, "cap released");
-	      require(_msgSender() == deposit.resolver, "not deposit resolver");
-	      require(_msgSender() != deposit.client, "cannot be deposit party");
-	      require(_msgSender() != deposit.provider[0], "cannot be deposit party");
-	      require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
+	require(deposit.locked == 1, "deposit not locked"); 
+	require(deposit.cap > deposit.released, "cap released");
+	require(_msgSender() == deposit.resolver, "not deposit resolver");
+	require(_msgSender() != deposit.client, "cannot be deposit party");
+	require(_msgSender() != deposit.provider[0], "cannot be deposit party");
+	require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
         
         IERC20(deposit.token).safeTransfer(deposit.client, clientAward);
         IERC20(deposit.token).safeTransfer(deposit.provider[0], providerAward);
         IERC20(deposit.token).safeTransfer(deposit.resolver, resolutionFee);
 	    
-	      deposit.released = deposit.released.add(remainder); 
+	deposit.released = deposit.released.add(remainder); 
 	    
-	      emit Resolve(_msgSender(), clientAward, providerAward, index, details);
+	emit Resolve(_msgSender(), clientAward, providerAward, index, details);
     }
 }
