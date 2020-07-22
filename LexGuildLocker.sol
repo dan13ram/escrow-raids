@@ -210,7 +210,7 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         
         deposit.confirmed = 1;
         
-        emit DepositLocker(index, cap); 
+        emit DepositLocker(index, deposit.cap); 
     }
 
     function release(uint256 index) external { // client transfers deposit amount(s) (milestone) to provider(s) 
