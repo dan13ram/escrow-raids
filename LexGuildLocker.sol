@@ -149,7 +149,7 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
     }
     
     event RegisterLocker(address indexed client, address[] indexed provider, address indexed resolver, address token, uint256[] amount, uint256 cap, uint256 index, uint256 termination, bytes32 details);	
-    event DepositLocker(uint256 indexed index, uint256 indexed cap); 
+    event DepositLocker(uint256 indexed index, uint256 indexed cap);  
     event Release(uint256 indexed index, uint256[] indexed milestone); 
     event Withdraw(uint256 indexed index, uint256 indexed remainder);
     event Lock(address indexed sender, uint256 indexed index, bytes32 indexed details);
@@ -168,8 +168,9 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         uint256 milestones,
         uint256 termination,
         bytes32 details) external {
-        uint256 sum = 0;
-        for (uint256 i = 0; i < amount.length; i++) {
+        uint256 sum;
+        
+        for (uint256 i = 0; i < provider.length; i++) {
             sum = sum.add(amount[i]);
         }
         
