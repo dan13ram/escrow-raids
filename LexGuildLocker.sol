@@ -168,10 +168,12 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         uint256 milestones,
         uint256 termination,
         bytes32 details) external {
+        uint256 sum = 0;
         for (uint256 i = 0; i < amount.length; i++) {
-            uint256 sum = amount[i].add(amount[i]);
-            require(sum.mul(milestones) == cap, "deposit milestones mismatch");
+            sum = sum.add(amount[i]);
         }
+        
+        require(sum.mul(milestones) == cap, "deposit milestones mismatch");
   
         uint256 index = lockerIndex+1;
         lockerIndex = lockerIndex+1;
