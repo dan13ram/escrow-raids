@@ -3,6 +3,8 @@
 
 [![built-with openzeppelin](https://img.shields.io/badge/built%20with-OpenZeppelin-3677FF)](https://docs.openzeppelin.com/)
 
+*new* ***LexGuildLocker*** [0xb0D95049A9D78a1f5f111Ce18f25E0294da78418](https://etherscan.io/address/0xb0d95049a9d78a1f5f111ce18f25e0294da78418#code)
+
 ## v1 - LexLocker (LXL) ⚖️🔐⚔️ 
 
 LXL stores deal details, permissions, and escrows any ERC-20 token that can be further resolved through lexDAO arbitration for Party B deliverables.
