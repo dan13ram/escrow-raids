@@ -30,7 +30,7 @@ DEAR MSG.SENDER(S):
 
 pragma solidity 0.5.17;
 
-contract Context { // describes current contract execution context / openzeppelin-contracts/blob/master/contracts/GSN/Context.sol
+contract Context { // describes current contract execution context (metaTX support) / openzeppelin-contracts/blob/master/contracts/GSN/Context.sol
     function _msgSender() internal view returns (address payable) {
         return msg.sender;
     }
@@ -75,7 +75,7 @@ library SafeMath { // wrappers over solidity arithmetic operations with added ov
     }
 }
 
-library Address { // helper function for address type / openzeppelin-contracts/blob/master/contracts/utils/Address.sol
+library Address { // helper for address type / openzeppelin-contracts/blob/master/contracts/utils/Address.sol
     function isContract(address account) internal view returns (bool) {
         // According to EIP-1052, 0x0 is the value returned for not-yet created accounts
         // and 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470 is returned
@@ -119,20 +119,21 @@ library SafeERC20 { // wrappers around erc20 token txs that throw on failure (wh
 
 interface IWETH { // brief interface for ether wrapping contract 
     function deposit() payable external;
+    
     function transfer(address dst, uint wad) external returns (bool);
 }
 
-contract LexGuildLocker is Context { // splittable digital deal deposits w/ embedded arbitration tailored for guild raids
+contract LexGuildLocker is Context { // splittable digital deal lockers w/ embedded arbitration tailored for guild raids
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     /** <$> LXGL <$> **/
-    address private locker = address(this);
-    address public wETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // wrapping contract for raw payable ether
-    uint256 public lockerIndex;
-    mapping(uint256 => Deposit) public deposits; 
+    address private bank = address(this);
+    address public wETH = 0xd0A1E359811322d97991E03f863a0C30C2cF029C; // wrapping contract for raw payable ether (kovan)
+    uint256 public lockerCount;
+    mapping(uint256 => Locker) public lockers; 
 
-    struct Deposit {  
+    struct Locker {  
         address client; 
         address[] provider;
         address resolver;
@@ -147,11 +148,11 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
     }
     
     event RegisterLocker(address indexed client, address[] indexed provider, address indexed resolver, address token, uint256[] amount, uint256 cap, uint256 index, uint256 termination, bytes32 details);	
-    event DepositLocker(uint256 indexed index, uint256 indexed cap);  
+    event DepositLocker(uint256 indexed index, uint256 indexed sum);  
     event Release(uint256 indexed index, uint256[] indexed milestone); 
     event Withdraw(uint256 indexed index, uint256 indexed remainder);
     event Lock(address indexed sender, uint256 indexed index, bytes32 indexed details);
-    event Resolve(address indexed resolver, uint256 indexed clientAward, uint256 indexed providerAward, uint256 index, uint256 resolutionFee, bytes32 details); 
+    event Resolve(address indexed resolver, uint256 indexed clientAward, uint256[] indexed providerAward, uint256 index, uint256 resolutionFee, bytes32 details); 
 
     /***************
     LOCKER FUNCTIONS
@@ -165,19 +166,20 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
         uint256 cap,
         uint256 milestones,
         uint256 termination,
-        bytes32 details) external {
-        uint256 sum;
+        bytes32 details) external returns (uint256) {
+        require(provider.length == amount.length, "provider amount mismatch");
+	uint256 sum;
         
         for (uint256 i = 0; i < provider.length; i++) {
             sum = sum.add(amount[i]);
         }
         
         require(sum.mul(milestones) == cap, "deposit milestones mismatch");
-  
-        uint256 index = lockerIndex+1;
-        lockerIndex = lockerIndex+1;
         
-        deposits[index] = Deposit( 
+        lockerCount = lockerCount+1;
+        uint256 index = lockerCount;
+        
+        lockers[index] = Locker( 
             client, 
             provider,
             resolver,
@@ -191,60 +193,63 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
             details);
         
         emit RegisterLocker(client, provider, resolver, token, amount, cap, index, termination, details); 
+        return index;
     }
     
     function depositLocker(uint256 index) payable external { // client confirms deposit of cap and locks in deal
-        Deposit storage deposit = deposits[index];
+        Locker storage locker = lockers[index];
         
-        require(deposit.confirmed == 0, "already confirmed");
-        require(_msgSender() == deposit.client, "not deposit client");
+        require(locker.confirmed == 0, "already confirmed");
+        require(_msgSender() == locker.client, "not locker client");
         
-        if (deposit.token == wETH && msg.value > 0) {
-            require(msg.value == deposit.cap, "insufficient ETH");
+        uint256 sum = locker.cap;
+        
+        if (locker.token == wETH && msg.value > 0) {
+            require(msg.value == sum, "insufficient ETH");
             IWETH(wETH).deposit();
             (bool success, ) = wETH.call.value(msg.value)("");
             require(success, "transfer failed");
-            IWETH(wETH).transfer(locker, msg.value);
+            IWETH(wETH).transfer(bank, msg.value);
         } else {
-            IERC20(deposit.token).safeTransferFrom(msg.sender, locker, deposit.cap);
+            IERC20(locker.token).safeTransferFrom(msg.sender, bank, sum);
         }
         
-        deposit.confirmed = 1;
+        locker.confirmed = 1;
         
-        emit DepositLocker(index, deposit.cap); 
+        emit DepositLocker(index, sum); 
     }
 
-    function release(uint256 index) external { // client transfers deposit amount(s) (milestone) to provider(s) 
-    	Deposit storage deposit = deposits[index];
+    function release(uint256 index) external { // client transfers locker amount(s) (milestone) to provider(s) 
+    	Locker storage locker = lockers[index];
 	    
-	require(deposit.locked == 0, "deposit locked");
-	require(deposit.confirmed == 1, "deposit unconfirmed");
-	require(deposit.cap > deposit.released, "deposit released");
-    	require(_msgSender() == deposit.client, "not deposit client"); 
+	require(locker.locked == 0, "locker locked");
+	require(locker.confirmed == 1, "locker unconfirmed");
+	require(locker.cap > locker.released, "locker released");
+    	require(_msgSender() == locker.client, "not locker client"); 
         
-        uint256[] memory milestone = deposit.amount;
+        uint256[] memory milestone = locker.amount;
         
-        for (uint256 i = 0; i < deposit.provider.length; i++) {
-            IERC20(deposit.token).safeTransfer(deposit.provider[i], milestone[i]);
-            deposit.released = deposit.released.add(milestone[i]);
+        for (uint256 i = 0; i < locker.provider.length; i++) {
+            IERC20(locker.token).safeTransfer(locker.provider[i], milestone[i]);
+            locker.released = locker.released.add(milestone[i]);
         }
 
 	emit Release(index, milestone); 
     }
     
-    function withdraw(uint256 index) external { // withdraw deposit remainder to client if termination time passes and no lock
-    	Deposit storage deposit = deposits[index];
+    function withdraw(uint256 index) external { // withdraw locker remainder to client if termination time passes and no lock
+    	Locker storage locker = lockers[index];
         
-        require(deposit.locked == 0, "deposit locked");
-        require(deposit.confirmed == 1, "deposit unconfirmed");
-        require(deposit.cap > deposit.released, "deposit released");
-        require(now > deposit.termination, "termination time pending");
+        require(locker.locked == 0, "locker locked");
+        require(locker.confirmed == 1, "locker unconfirmed");
+        require(locker.cap > locker.released, "locker released");
+        require(now > locker.termination, "termination time pending");
         
-        uint256 remainder = deposit.cap.sub(deposit.released); 
+        uint256 remainder = locker.cap.sub(locker.released); 
         
-        IERC20(deposit.token).safeTransfer(deposit.client, remainder);
+        IERC20(locker.token).safeTransfer(locker.client, remainder);
         
-        deposit.released = deposit.released.add(remainder); 
+        locker.released = locker.released.add(remainder); 
         
 	emit Withdraw(index, remainder); 
     }
@@ -252,37 +257,43 @@ contract LexGuildLocker is Context { // splittable digital deal deposits w/ embe
     /************
     ADR FUNCTIONS
     ************/
-    function lock(uint256 index, bytes32 details) external { // client or (main) provider can lock deposit for resolution during locker period / update details
-        Deposit storage deposit = deposits[index]; 
+    function lock(uint256 index, bytes32 details) external { // client or (main) provider can lock remainder for resolution during locker period / update request details
+        Locker storage locker = lockers[index]; 
         
-        require(deposit.confirmed == 1, "deposit unconfirmed");
-        require(deposit.cap > deposit.released, "deposit released");
-        require(now < deposit.termination, "termination time passed"); 
-        require(_msgSender() == deposit.client || _msgSender() == deposit.provider[0], "not deposit party"); 
+        require(locker.confirmed == 1, "locker unconfirmed");
+        require(locker.cap > locker.released, "locker released");
+        require(now < locker.termination, "termination time passed"); 
+        
+        for (uint256 i = 0; i < locker.provider.length; i++) {
+            require(_msgSender() == locker.client || _msgSender() == locker.provider[i], "not locker party"); 
+        }
 
-	deposit.locked = 1; 
+	locker.locked = 1; 
 	    
 	emit Lock(_msgSender(), index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256 providerAward, bytes32 details) external { // selected resolver splits locked deposit remainder 
-        Deposit storage deposit = deposits[index];
+    function resolve(uint256 index, uint256 clientAward, uint256[] calldata providerAward, bytes32 details) external { // resolver splits locked deposit remainder between client and (main) provider
+        Locker storage locker = lockers[index];
         
-        uint256 remainder = deposit.cap.sub(deposit.released); 
+        uint256 remainder = locker.cap.sub(locker.released); 
 	uint256 resolutionFee = remainder.div(20); // calculates dispute resolution fee (5% of remainder)
 	    
-	require(deposit.locked == 1, "deposit not locked"); 
-	require(deposit.cap > deposit.released, "cap released");
-	require(_msgSender() == deposit.resolver, "not deposit resolver");
-	require(_msgSender() != deposit.client, "cannot be deposit party");
-	require(_msgSender() != deposit.provider[0], "cannot be deposit party");
-	require(clientAward.add(providerAward) == remainder.sub(resolutionFee), "resolution must match deposit"); 
-        
-        IERC20(deposit.token).safeTransfer(deposit.client, clientAward);
-        IERC20(deposit.token).safeTransfer(deposit.provider[0], providerAward);
-        IERC20(deposit.token).safeTransfer(deposit.resolver, resolutionFee);
+	require(locker.locked == 1, "locker not locked"); 
+	require(locker.cap > locker.released, "cap released");
+	require(_msgSender() == locker.resolver, "not locker resolver");
+	require(_msgSender() != locker.client, "cannot be locker client");
 	    
-	deposit.released = deposit.released.add(remainder); 
+	for (uint256 i = 0; i < locker.provider.length; i++) {
+            require(msg.sender != locker.provider[i], "cannot be locker provider");
+            require(clientAward.add(providerAward[i]) == remainder.sub(resolutionFee), "resolution must match remainder");
+            IERC20(locker.token).safeTransfer(locker.provider[i], providerAward[i]);
+        }
+  
+        IERC20(locker.token).safeTransfer(locker.client, clientAward);
+        IERC20(locker.token).safeTransfer(locker.resolver, resolutionFee);
+	    
+	locker.released = locker.released.add(remainder); 
 	    
 	emit Resolve(_msgSender(), clientAward, providerAward, index, resolutionFee, details);
     }
