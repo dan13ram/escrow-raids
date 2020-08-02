@@ -5,12 +5,6 @@
 ██║     ██╔══╝   ██╔██╗                          
 ███████╗███████╗██╔╝ ██╗                         
 ╚══════╝╚══════╝╚═╝  ╚═╝                         
- ██████╗ ██╗   ██╗██╗██╗     ██████╗             
-██╔════╝ ██║   ██║██║██║     ██╔══██╗            
-██║  ███╗██║   ██║██║██║     ██║  ██║            
-██║   ██║██║   ██║██║██║     ██║  ██║            
-╚██████╔╝╚██████╔╝██║███████╗██████╔╝            
- ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝             
 ██╗      ██████╗  ██████╗██╗  ██╗███████╗██████╗ 
 ██║     ██╔═══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗
 ██║     ██║   ██║██║     █████╔╝ █████╗  ██████╔╝
@@ -19,10 +13,10 @@
 ╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 DEAR MSG.SENDER(S):
 
-/ LXGL is a project in beta.
+/ LXL is a project in beta.
 // Please audit and use at your own risk.
-/// Entry into LXGL shall not create an attorney/client relationship.
-//// Likewise, LXGL should not be construed as legal advice or replacement for professional counsel.
+/// Entry into LXL shall not create an attorney/client relationship.
+//// Likewise, LXL should not be construed as legal advice or replacement for professional counsel.
 ///// STEAL THIS C0D3SL4W 
 
 ~presented by Open, ESQ || LexDAO LLC
@@ -117,19 +111,17 @@ library SafeERC20 { // wrappers around erc20 token txs that throw on failure (wh
     }
 }
 
-interface IWETH { // brief interface for ether wrapping contract 
+interface IWETH { // brief interface for canonical ether token wrapper contract 
     function deposit() payable external;
     
     function transfer(address dst, uint wad) external returns (bool);
 }
 
-contract LexGuildLocker is Context { // splittable digital deal lockers w/ embedded arbitration tailored for guild raids
+contract LexLockerProvider is Context { // *provider-side splittable digital deal lockers w/ embedded arbitration
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    /** <$> LXGL <$> **/
-    address private bank = address(this);
-    address public wETH = 0xd0A1E359811322d97991E03f863a0C30C2cF029C; // wrapping contract for raw payable ether (kovan)
+    address public wETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2; // canonical ether token wrapper contract reference
     uint256 public lockerCount;
     mapping(uint256 => Locker) public lockers; 
 
@@ -157,7 +149,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
     /***************
     LOCKER FUNCTIONS
     ***************/
-    function registerLocker( // register locker for token deposit and client deal confirmation
+    function registerLocker( // register locker for token deposit & client deal confirmation
         address client,
         address[] calldata provider,
         address resolver,
@@ -168,6 +160,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
         uint256 termination,
         bytes32 details) external returns (uint256) {
         require(provider.length == amount.length, "provider amount mismatch");
+        
 	uint256 sum;
         
         for (uint256 i = 0; i < provider.length; i++) {
@@ -176,7 +169,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
         
         require(sum.mul(milestones) == cap, "deposit milestones mismatch");
         
-        lockerCount = lockerCount+1;
+        lockerCount = lockerCount + 1;
         uint256 index = lockerCount;
         
         lockers[index] = Locker( 
@@ -196,7 +189,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
         return index;
     }
     
-    function depositLocker(uint256 index) payable external { // client confirms deposit of cap and locks in deal
+    function depositLocker(uint256 index) payable external { // client confirms deposit of cap & locks in deal
         Locker storage locker = lockers[index];
         
         require(locker.confirmed == 0, "already confirmed");
@@ -209,9 +202,9 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
             IWETH(wETH).deposit();
             (bool success, ) = wETH.call.value(msg.value)("");
             require(success, "transfer failed");
-            IWETH(wETH).transfer(bank, msg.value);
+            IWETH(wETH).transfer(address(this), msg.value);
         } else {
-            IERC20(locker.token).safeTransferFrom(msg.sender, bank, sum);
+            IERC20(locker.token).safeTransferFrom(msg.sender, address(this), sum);
         }
         
         locker.confirmed = 1;
@@ -237,7 +230,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
 	emit Release(index, milestone); 
     }
     
-    function withdraw(uint256 index) external { // withdraw locker remainder to client if termination time passes and no lock
+    function withdraw(uint256 index) external { // withdraw locker remainder to client if termination time passes & no lock
     	Locker storage locker = lockers[index];
         
         require(locker.locked == 0, "locker locked");
@@ -257,7 +250,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
     /************
     ADR FUNCTIONS
     ************/
-    function lock(uint256 index, bytes32 details) external { // client or (main) provider can lock remainder for resolution during locker period / update request details
+    function lock(uint256 index, bytes32 details) external { // client or provider(s) can lock remainder for resolution during locker period / update request details
         Locker storage locker = lockers[index]; 
         
         require(locker.confirmed == 1, "locker unconfirmed");
@@ -273,7 +266,7 @@ contract LexGuildLocker is Context { // splittable digital deal lockers w/ embed
 	emit Lock(_msgSender(), index, details);
     }
     
-    function resolve(uint256 index, uint256 clientAward, uint256[] calldata providerAward, bytes32 details) external { // resolver splits locked deposit remainder between client and (main) provider
+    function resolve(uint256 index, uint256 clientAward, uint256[] calldata providerAward, bytes32 details) external { // resolver splits locked deposit remainder between client & provider(s)
         Locker storage locker = lockers[index];
         
         uint256 remainder = locker.cap.sub(locker.released); 
